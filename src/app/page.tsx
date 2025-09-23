@@ -1,58 +1,38 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import useAnonAuth from '@/hooks/useAnonAuth';
 import MemoForm from '@/components/MemoForm';
 import MemoList from '@/components/MemoList';
-import type { Memo } from '@/types/memo';
-import {
-  addMemo,
-  deleteMemo,
-  subscribeMemos,
-  togglePin,
-  updateMemo,
-} from '@/repo/memoRepo';
+import useMemoStore from '@/hooks/useMemoStore';
 
 export default function Page() {
-  const { user, ready } = useAnonAuth();
-  const [memos, setMemos] = useState<Memo[]>([]);
-
-  // 실시간 구독
-  useEffect(() => {
-    if (!ready || !user) return;
-    const unsub = subscribeMemos(user.uid, setMemos);
-    return () => unsub();
-  }, [ready, user]);
-
-  const onAdd = async (text: string) => {
-    if (!user) return;
-    await addMemo(user.uid, text);
-  };
-  const onUpdate = async (id: string, text: string) => {
-    await updateMemo(id, text);
-  };
-  const onTogglePin = async (id: string, next: boolean) => {
-    await togglePin(id, next);
-  };
-  const onDelete = async (id: string) => {
-    await deleteMemo(id);
-  };
+  const { ready, memos, addMemo, updateMemo, togglePin, deleteMemo } =
+    useMemoStore();
 
   return (
     <main className='container'>
-      <h1>메모앱 (Firebase)</h1>
-      {!ready && <p>로그인 준비중…</p>}
-      {ready && (
+      <section className='hero'>
+        <h1>나만의 메모 보드</h1>
+        <p>
+          로그인 없이 빠르게 메모를 작성하고, 중요한 메모는 고정해서 한눈에
+          확인해보세요.
+        </p>
+      </section>
+
+      {!ready ? (
+        <section className='card status-card'>
+          <p>메모를 불러오는 중입니다…</p>
+        </section>
+      ) : (
         <>
-          <MemoForm onAdd={onAdd} />
-          <div className='card'>
+          <MemoForm onAdd={addMemo} />
+          <section className='card memo-list-card'>
             <MemoList
               memos={memos}
-              onTogglePin={onTogglePin}
-              onUpdate={onUpdate}
-              onDelete={onDelete}
+              onTogglePin={togglePin}
+              onUpdate={updateMemo}
+              onDelete={deleteMemo}
             />
-          </div>
+          </section>
         </>
       )}
     </main>

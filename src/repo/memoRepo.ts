@@ -16,7 +16,15 @@ import {
   where,
 } from 'firebase/firestore';
 
-const col = (userId: string) => collection(db, 'memos');
+type MemoDoc = {
+  userId?: string;
+  text?: string;
+  pinned?: boolean;
+  createdAt?: number | Timestamp | null;
+  updatedAt?: number | Timestamp | null;
+};
+
+const col = () => collection(db, 'memos');
 
 const tsToMs = (ts: Timestamp | null | undefined) =>
   ts ? ts.toMillis() : Date.now();
@@ -24,27 +32,27 @@ const tsToMs = (ts: Timestamp | null | undefined) =>
 export function subscribeMemos(userId: string, cb: (memos: Memo[]) => void) {
   // 내 문서만 + 핀 우선 + 최신 수정순
   const q = query(
-    col(userId),
+    col(),
     where('userId', '==', userId),
     orderBy('pinned', 'desc'),
     orderBy('updatedAt', 'desc')
   );
   return onSnapshot(q, (snap) => {
     const rows: Memo[] = snap.docs.map((d) => {
-      const data = d.data() as any;
+      const data = d.data() as MemoDoc;
       return {
         id: d.id,
-        userId: data.userId,
+        userId: data.userId ?? '',
         text: data.text ?? '',
-        pinned: !!data.pinned,
+        pinned: Boolean(data.pinned),
         createdAt:
           typeof data.createdAt === 'number'
             ? data.createdAt
-            : tsToMs(data.createdAt),
+            : tsToMs(data.createdAt as Timestamp | null | undefined),
         updatedAt:
           typeof data.updatedAt === 'number'
             ? data.updatedAt
-            : tsToMs(data.updatedAt),
+            : tsToMs(data.updatedAt as Timestamp | null | undefined),
       };
     });
     cb(rows);
@@ -53,7 +61,7 @@ export function subscribeMemos(userId: string, cb: (memos: Memo[]) => void) {
 
 export async function addMemo(userId: string, text: string) {
   const now = Date.now();
-  await addDoc(col(userId), {
+  await addDoc(col(), {
     userId,
     text,
     pinned: false,
