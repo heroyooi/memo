@@ -10,12 +10,31 @@ type Props = {
   onDelete: (id: string) => void;
 };
 
+const fmt = (ms: number) => {
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+};
+
 export default function MemoList({
   memos,
   onTogglePin,
   onUpdate,
   onDelete,
 }: Props) {
+  const [previewId, setPreviewId] = useState<string | null>(null);
+
+  const previewMemo =
+    previewId !== null ? memos.find((memo) => memo.id === previewId) ?? null : null;
+
+  useEffect(() => {
+    if (previewId !== null && !previewMemo) {
+      setPreviewId(null);
+    }
+  }, [previewId, previewMemo]);
+
   if (!memos.length)
     return (
       <p className='empty-message'>
@@ -24,17 +43,23 @@ export default function MemoList({
     );
 
   return (
-    <div className='list'>
-      {memos.map((m) => (
-        <Item
-          key={m.id}
-          m={m}
-          onTogglePin={onTogglePin}
-          onUpdate={onUpdate}
-          onDelete={onDelete}
-        />
-      ))}
-    </div>
+    <>
+      <div className='list'>
+        {memos.map((m) => (
+          <Item
+            key={m.id}
+            m={m}
+            onTogglePin={onTogglePin}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+            onOpenPreview={() => setPreviewId(m.id)}
+          />
+        ))}
+      </div>
+      {previewMemo && (
+        <PreviewModal memo={previewMemo} onClose={() => setPreviewId(null)} />
+      )}
+    </>
   );
 }
 
@@ -43,11 +68,13 @@ function Item({
   onTogglePin,
   onUpdate,
   onDelete,
+  onOpenPreview,
 }: {
   m: Memo;
   onTogglePin: (id: string, next: boolean) => void;
   onUpdate: (id: string, text: string) => void;
   onDelete: (id: string) => void;
+  onOpenPreview: (id: string) => void;
 }) {
   const [value, setValue] = useState(m.text);
 
@@ -71,14 +98,6 @@ function Item({
       commit();
       e.currentTarget.blur();
     }
-  };
-
-  const fmt = (ms: number) => {
-    const d = new Date(ms);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
-      d.getDate()
-    )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
   return (
@@ -106,6 +125,13 @@ function Item({
           {m.updatedAt !== m.createdAt && (
             <span className='meta'>수정 {fmt(m.updatedAt)}</span>
           )}
+          <button
+            type='button'
+            className='text-link-button'
+            onClick={() => onOpenPreview(m.id)}
+          >
+            크게 보기
+          </button>
         </div>
       </div>
       <div className='item-right'>
@@ -119,5 +145,59 @@ function Item({
         </button>
       </div>
     </article>
+  );
+}
+
+function PreviewModal({ memo, onClose }: { memo: Memo; onClose: () => void }) {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [onClose]);
+
+  return (
+    <div className='modal-backdrop' role='presentation' onClick={onClose}>
+      <div
+        className='modal'
+        role='dialog'
+        aria-modal='true'
+        aria-labelledby={`memo-modal-title-${memo.id}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className='modal-header'>
+          <h2 className='modal-title' id={`memo-modal-title-${memo.id}`}>
+            메모 전체 보기
+          </h2>
+          <button
+            type='button'
+            className='modal-close'
+            onClick={onClose}
+            aria-label='닫기'
+          >
+            ✕
+          </button>
+        </header>
+        <div className='modal-meta'>
+          <span>작성 {fmt(memo.createdAt)}</span>
+          {memo.updatedAt !== memo.createdAt && (
+            <span>수정 {fmt(memo.updatedAt)}</span>
+          )}
+        </div>
+        <div className='modal-body'>
+          <p className='modal-text'>{memo.text}</p>
+        </div>
+      </div>
+    </div>
   );
 }
