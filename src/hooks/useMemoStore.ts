@@ -1,36 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import {
+  addMemo as addMemoToRepo,
+  deleteMemo as deleteMemoFromRepo,
+  subscribeMemos,
+  togglePin as togglePinInRepo,
+  updateMemo as updateMemoInRepo,
+} from '@/repo/memoRepo';
 import type { Memo } from '@/types/memo';
 
-const STORAGE_KEY = 'memo-app.memos';
-
-const sortMemos = (items: Memo[]) =>
-  [...items].sort((a, b) => {
-    if (a.pinned !== b.pinned) {
-      return a.pinned ? -1 : 1;
-    }
-    return b.updatedAt - a.updatedAt;
-  });
-
-const createId = () => {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-  return `memo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-};
-
-const createMemo = (text: string): Memo => {
-  const now = Date.now();
-  return {
-    id: createId(),
-    userId: 'local',
-    text,
-    pinned: false,
-    createdAt: now,
-    updatedAt: now,
-  };
-};
+const USER_ID = 'local';
 
 type UseMemoStore = {
   ready: boolean;
@@ -46,70 +26,55 @@ export default function useMemoStore(): UseMemoStore {
   const [memos, setMemos] = useState<Memo[]>([]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    setReady(false);
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
 
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Memo[];
-        setMemos(sortMemos(parsed));
-      }
+      unsubscribe = subscribeMemos(USER_ID, (items) => {
+        if (!active) return;
+        setMemos(items);
+        setReady(true);
+      });
     } catch (error) {
-      console.error('Failed to load memos from storage', error);
-    } finally {
+      console.error('Failed to subscribe memos from Firestore', error);
       setReady(true);
     }
-  }, []);
 
-  useEffect(() => {
-    if (!ready || typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(memos));
-    } catch (error) {
-      console.error('Failed to persist memos to storage', error);
-    }
-  }, [memos, ready]);
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, []);
 
   const addMemo = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    setMemos((prev) => sortMemos([...prev, createMemo(trimmed)]));
+    addMemoToRepo(USER_ID, trimmed).catch((error) => {
+      console.error('Failed to add memo', error);
+    });
   };
 
   const updateMemo = (id: string, text: string) => {
-    setMemos((prev) =>
-      sortMemos(
-        prev.map((memo) => {
-          if (memo.id !== id) return memo;
-          if (memo.text === text) return memo;
-          return {
-            ...memo,
-            text,
-            updatedAt: Date.now(),
-          };
-        })
-      )
-    );
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const current = memos.find((memo) => memo.id === id);
+    if (current && current.text === trimmed) return;
+    updateMemoInRepo(id, trimmed).catch((error) => {
+      console.error('Failed to update memo', error);
+    });
   };
 
   const togglePin = (id: string, next: boolean) => {
-    setMemos((prev) =>
-      sortMemos(
-        prev.map((memo) =>
-          memo.id === id
-            ? {
-                ...memo,
-                pinned: next,
-                updatedAt: Date.now(),
-              }
-            : memo
-        )
-      )
-    );
+    togglePinInRepo(id, next).catch((error) => {
+      console.error('Failed to toggle memo pin', error);
+    });
   };
 
   const deleteMemo = (id: string) => {
-    setMemos((prev) => prev.filter((memo) => memo.id !== id));
+    deleteMemoFromRepo(id).catch((error) => {
+      console.error('Failed to delete memo', error);
+    });
   };
 
   return {
