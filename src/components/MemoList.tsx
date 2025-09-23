@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Memo } from '@/types/memo';
 
 type Props = {
@@ -149,7 +150,16 @@ function Item({
 }
 
 function PreviewModal({ memo, onClose }: { memo: Memo; onClose: () => void }) {
+  const [mounted, setMounted] = useState(() => typeof window !== 'undefined');
+
   useEffect(() => {
+    if (mounted) return;
+    setMounted(true);
+  }, [mounted]);
+
+  useEffect(() => {
+    if (!mounted) return;
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
@@ -164,9 +174,11 @@ function PreviewModal({ memo, onClose }: { memo: Memo; onClose: () => void }) {
       window.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = originalOverflow;
     };
-  }, [onClose]);
+  }, [mounted, onClose]);
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div className='modal-backdrop' role='presentation' onClick={onClose}>
       <div
         className='modal'
@@ -198,6 +210,7 @@ function PreviewModal({ memo, onClose }: { memo: Memo; onClose: () => void }) {
           <p className='modal-text'>{memo.text}</p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
