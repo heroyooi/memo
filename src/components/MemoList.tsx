@@ -78,6 +78,7 @@ function Item({
   onOpenPreview: (id: string) => void;
 }) {
   const [value, setValue] = useState(m.text);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     setValue(m.text);
@@ -101,8 +102,14 @@ function Item({
     }
   };
 
+  const collapsedText = (() => {
+    const trimmed = value.trim();
+    if (!trimmed) return '내용 없음';
+    return trimmed.length > 120 ? `${trimmed.slice(0, 118)}…` : trimmed;
+  })();
+
   return (
-    <article className='item'>
+    <article className={`item ${collapsed ? 'is-collapsed' : ''}`}>
       <div className='item-left'>
         <button
           type='button'
@@ -114,13 +121,19 @@ function Item({
         </button>
       </div>
       <div className='item-content'>
-        <textarea
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={commit}
-          onKeyDown={onKeyDown}
-          placeholder='내용을 입력하세요'
-        />
+        {collapsed ? (
+          <div className='item-collapsed-text' aria-label='접힌 메모 미리보기'>
+            {collapsedText}
+          </div>
+        ) : (
+          <textarea
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={commit}
+            onKeyDown={onKeyDown}
+            placeholder='내용을 입력하세요'
+          />
+        )}
         <div className='item-meta'>
           <span className='meta'>작성 {fmt(m.createdAt)}</span>
           {m.updatedAt !== m.createdAt && (
@@ -132,6 +145,13 @@ function Item({
             onClick={() => onOpenPreview(m.id)}
           >
             크게 보기
+          </button>
+          <button
+            type='button'
+            className='text-link-button'
+            onClick={() => setCollapsed((prev) => !prev)}
+          >
+            {collapsed ? '펴기' : '접기'}
           </button>
         </div>
       </div>
